@@ -1,4 +1,6 @@
-venv/
-output.txt
-subdomain.txt
-output*
+# Ignore all files
+*
+
+# Except for specific files
+!README.md
+!crtsh.py
