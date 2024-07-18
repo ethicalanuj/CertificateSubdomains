@@ -11,7 +11,7 @@ source venv/bin/activate
 2. Install Dependencies:
 - Install the required Python packages using pip.
 ```
-pip install requests beautifulsoup4
+pip install requests beautifulsoup4 chardet
 ```
 
 4. Run the Script:

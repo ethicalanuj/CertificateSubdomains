@@ -4,6 +4,7 @@ import argparse
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -70,10 +71,18 @@ class crtShClass():
 
     def saveSubdomains(self):
         unique_subdomains = list(set(self.foundURLsList))
-        with open(self.output_file, 'w') as f:
-            for subdomain in unique_subdomains:
-                f.write(subdomain + '\n')
-        logging.info(f"Subdomains saved to {self.output_file}")
+        try:
+            if os.path.isdir(self.output_file):
+                logging.error(f"Output path '{self.output_file}' is a directory. Please provide a valid file path.")
+                return
+            if not os.path.exists(os.path.dirname(self.output_file)) and os.path.dirname(self.output_file) != '':
+                os.makedirs(os.path.dirname(self.output_file))
+            with open(self.output_file, 'w') as f:
+                for subdomain in unique_subdomains:
+                    f.write(subdomain + '\n')
+            logging.info(f"Subdomains saved to {self.output_file}")
+        except Exception as e:
+            logging.error(f"Error saving subdomains to '{self.output_file}': {e}")
 
 def read_domains_from_file(file_path):
     with open(file_path, 'r') as f:
