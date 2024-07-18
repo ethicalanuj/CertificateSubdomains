@@ -5,6 +5,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import os
+import signal
+import sys
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -20,10 +22,14 @@ class crtShClass():
         self.timeout = 30
         self.retries = 5
         self.num_threads = num_threads
+        self.stop_signal = False
 
     def subdomainScrape(self, domain):
         url = f"https://crt.sh/?q=%25.{domain}"
         for attempt in range(self.retries):
+            if self.stop_signal:
+                logging.info(f"Stopping retries for {domain} due to interrupt signal.")
+                return []
             try:
                 r = requests.get(url, headers=self.headers, timeout=self.timeout)
                 r.raise_for_status()
@@ -42,6 +48,9 @@ class crtShClass():
                         pass
                 return subdomains
             except requests.RequestException as e:
+                if self.stop_signal:
+                    logging.info(f"Stopping retries for {domain} due to interrupt signal.")
+                    return []
                 logging.error(f"Error fetching data for {domain}: {e}")
                 if e.response and e.response.status_code == 503:
                     wait_time = 2 ** attempt
@@ -61,6 +70,8 @@ class crtShClass():
         with ThreadPoolExecutor(max_workers=self.num_threads) as executor:
             future_to_domain = {executor.submit(self.subdomainScrape, domain): domain for domain in self.domains}
             for future in as_completed(future_to_domain):
+                if self.stop_signal:
+                    break
                 domain = future_to_domain[future]
                 try:
                     subdomains = future.result()
@@ -88,6 +99,10 @@ def read_domains_from_file(file_path):
     with open(file_path, 'r') as f:
         return [line.strip() for line in f.readlines()]
 
+def signal_handler(sig, frame):
+    logging.info("Interrupt received, stopping...")
+    crtsh.stop_signal = True
+
 def main():
     parser = argparse.ArgumentParser(description="Fetch subdomains for given domains using crt.sh")
     parser.add_argument("-d", "--domains", nargs='+', help="Domain Names; e.g., example.com example2.com")
@@ -106,8 +121,16 @@ def main():
         logging.error("No domains provided. Use -d or --domains to specify domains or -i or --input to specify an input file.")
         return
 
+    global crtsh
     crtsh = crtShClass(domains, args.output, args.threads)
-    crtsh.run()
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    try:
+        crtsh.run()
+    except KeyboardInterrupt:
+        logging.info("Keyboard interrupt received, stopping...")
+
     crtsh.saveSubdomains()
 
 if __name__ == "__main__":
